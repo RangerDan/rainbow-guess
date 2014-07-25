@@ -53,7 +53,8 @@ LcdLines lcdLines;
 
 // LED Strip Prep
 // Structure in this sketch adapted from Pololu LED Strip example LedStripColorTester
-#include <PololuLedStrip2.h>                // LED Strip library
+#include <RadioShackRgbLedStrip.h>                // LED Strip library
+bool PololuLedStripBase::interruptFriendly = false;
 const int LED_STRIP_PIN = 9;               // Strip input is on Pin 9
 const int LED_COUNT = 6;                  // Project requires 21 LEDs in 3 light increments
 PololuLedStrip<LED_STRIP_PIN> ledStrip;    // Create an ledStrip object on pin X.
@@ -461,15 +462,16 @@ void loop()
 /// - Checks the length of each row and prints an error to the LCD if they exceed the
 ///   number of columns.
 /// - Only writes the number of lines the screen is capable of supporting.
+/// RangerDan-07242014
+/// - Simplified function to not write as much supporting info and reduce memory footprint
 /* ------------------------------------------------------------------------------- */
 boolean printToLcd(String* lines, int lineCount)
 {
   boolean linesTooLong = false;
-  String errorMessageLineLength = "Line Length Error";
   
   if (lineCount > LCD_ROWS)              // If the number of lines exceeds the number of rows on the LCD,
   {                                      // only write the max number of lines.
-     logToSerial("Too many lines sent.  Sent: " + String(lineCount) + ", Max: " + LCD_ROWS);
+     logToSerial("Too many lines");
      lineCount = LCD_ROWS;
   }
   
@@ -478,31 +480,31 @@ boolean printToLcd(String* lines, int lineCount)
     if (lines[i].length() > LCD_COLUMNS) // If too long, set flag
     {
       linesTooLong = true;
-      logToSerial("Line too Long: " + lines[i]);
+      logToSerial("Line too Long");
     }
   }
   
   lcd.clear();                           // Clear the screen
   
-  if (linesTooLong)                      // If flag has been set, print an error message
+  if (!linesTooLong)                      // If flag has been set, print an error message
   {
-    logToSerial("Printing error to LCD: " + errorMessageLineLength);
-    lcd.setCursor(0,0);                  // set cursor to column 0, row 0 (the first row)
-    lcd.print(errorMessageLineLength);   // change this text to whatever you like. keep it clean.
-  }
-  else
-  {
-    logToSerial("Printing lines to LCD");
     for (int j=0;j<lineCount;j++)
     {
-      logToSerial("Printing line to LCD: " + lines[j]);
+      logToSerial("To LCD: " + lines[j]);
       lcd.setCursor(0,j);                // set cursor to column 0, row 0 (the first row)
       lcd.print(lines[j]);               // change this text to whatever you like. keep it clean.
     }
   }
-  
+
   return !linesTooLong;
 }
+/* ------------------------------------------------------------------------------- */
+/// void setColors
+///   rgb_color* colorsToWrite: array of colors to be written to the LED Strip
+/// Author: RangerDan
+/// Created: 07242014
+/// Description: 
+/// - Takes in an array of colors and writes them to the array of RGB LED Strip colors
 /* ------------------------------------------------------------------------------- */
 void setColors( rgb_color* colorsToWrite)
 {
