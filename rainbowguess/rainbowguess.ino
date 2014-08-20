@@ -2,9 +2,7 @@
 // Used for logging behavior to the PC
 const long SERIAL_BAUD_RATE = 115200L;
 
-// Controls Prep
-#include <Bounce2.h>
-const int BUTTON_COUNT = 6;
+// button enumerator for all button types
 typedef enum  ControlType {
   B_SELECT,
   B_A,
@@ -14,8 +12,59 @@ typedef enum  ControlType {
   B_DOWN,
   INVALID
 };
-const int BUTTON_PIN[] = {A0, A1, A2, A3, A4, A5};
-Bounce debouncer[BUTTON_COUNT];
+ControlType buttonPress = INVALID;
+
+// Controls Button Setup and Tolerances
+#include <AnalogButtons.h>
+const int BUTTON_PIN = A0;
+void b1Click()
+{  
+  buttonPress = B_SELECT;  
+  logToSerial("B_SELECT"); 
+}
+
+void b2Click()
+{  
+  buttonPress = B_A;
+  logToSerial("B_A"); 
+}
+
+void b3Click()
+{  
+  buttonPress = B_B;
+  logToSerial("B_B"); 
+}
+
+void b4Click()
+{  
+  buttonPress = B_C;
+  logToSerial("B_C"); 
+}
+
+void b5Click()
+{  
+  buttonPress = B_UP;
+  logToSerial("B_UP"); 
+}
+
+void b6Click()
+{  
+  buttonPress = B_DOWN;
+  logToSerial("B_DOWN"); 
+}
+/*
+void configure() {
+	Serial.println(analogRead(BUTTON_PIN));
+	delay(150);
+}
+*/
+AnalogButtons analogButtons(BUTTON_PIN,INPUT,1);
+Button b1 = Button(1010, &b1Click);
+Button b2 = Button(925, &b2Click);
+Button b3 = Button(830, &b3Click);
+Button b4 = Button(695, &b4Click);
+Button b5 = Button(512, &b5Click);
+Button b6 = Button(232, &b6Click);
 
 // LCD Prep
 // Structure in this sketch adapted from www.hacktronics.com 16x2 example
@@ -80,51 +129,6 @@ typedef enum StateType {
   S_UNKNOWN               // Machine is in an unknown state (before init or bad state)
 };
 /* ------------------------------------------------------------------------------- */
-class StateMachine {
-  public:
-    void SetState(StateType);
-    StateType state;
-    StateMachine();
-};
-StateMachine::StateMachine()
-{
-}
-
-void StateMachine::SetState(StateType newState)
-{
-  state = newState;
-  switch (newState)
-  {
-    case S_START:        // Machine is on the first screen
-      // ----------------********************
-      lcdLines.SetLines("   Light Mixer Pro",
-                        "Which colors mix to", 
-                        "   make a rainbow?", 
-                        "SELECT to continue..");
-      break;
-    case S_NAVIGATION:   // Machine is navigating between colors
-      // ----------------********************
-      lcdLines.SetLines("UP/DOWN to move",
-                        "SELECT to try a mix",
-                        "This row's mix:",
-                        colorRegister.GetMix(colorRegister.cursorPosition));
-      break;
-    case S_MIXER:         
-  }        
-  printToLcd(lcdLines.lines,4);
-      
-    
-  S_MIXER,                // Machine takes input to add/clear mixed colors on the row
-  S_CONFIRM,              // Machine asks user if they are complete, can navigate away
-  S_DISPLAY,              // Machine displays current mix
-  S_CHECK,                // Machine is displaying results
-  S_UNKNOWN               // Machine is in an unknown state (before init or bad state)
-
-  }
-}
-
-StateMachine machine;
-/* ------------------------------------------------------------------------------- */
 class Register {
   public:
     void SetRows(rgb_color, rgb_color, rgb_color, rgb_color, rgb_color, rgb_color);
@@ -163,6 +167,7 @@ void Register::SetCursor(int cursorPos)
    {
      colors[cursorPos] = C_WHITE;
    }
+   logToSerial("Cursor Position: " + cursorPos);
 }
 StateType Register::MoveCursor(int cursorDirection)
 {
@@ -171,7 +176,6 @@ StateType Register::MoveCursor(int cursorDirection)
     SetCursor(-1);
     return S_CONFIRM;   
   }
-  
   else if (cursorPosition == -1)
   {
     if (cursorDirection == -1)
@@ -183,15 +187,10 @@ StateType Register::MoveCursor(int cursorDirection)
       SetCursor(0);
     }
   }
-  else if (cursorDirection == -1)
+  else
   {
-    cursorPosition += cursorDirection;
+    SetCursor(cursorPosition + cursorDirection);
   }
-  else if (cursorDirection == 1)
-  {
-    cursorPosition += cursorDirection;
-  }
-  
   return S_NAVIGATION;
 }
 String Register::GetMix(int row)
@@ -248,6 +247,76 @@ String Register::SetMix(ControlType buttonPress)
 }
 Register colorRegister;
 /* ------------------------------------------------------------------------------- */
+class StateMachine {
+  public:
+    void SetState(StateType, Register);
+    StateType state;
+    StateMachine();
+};
+StateMachine::StateMachine()
+{
+}
+
+void StateMachine::SetState(StateType newState, Register colorRegister)
+{
+  state = newState;
+  switch (newState)
+  {
+    case S_START:        // Machine is on the first screen
+      logToSerial("S_START");
+      // ----------------********************
+      lcdLines.SetLines("   Light Mixer Pro",
+                        "Which colors mix to", 
+                        "   make a rainbow?", 
+                        "SELECT to continue..");
+      break;
+    case S_NAVIGATION:   // Machine is navigating between colors
+      logToSerial("S_NAVIGATION");
+      // ----------------********************
+      lcdLines.SetLines("UP/DOWN to move",
+                        "SELECT to try a mix",
+                        "This row's mix:",
+                        colorRegister.GetMix(colorRegister.cursorPosition));
+      break;
+    case S_MIXER:        // Machine is able to mix colors
+      logToSerial("S_MIXER");
+      // ----------------********************
+      lcdLines.SetLines("Choose 2 from A/B/C",
+                        "SELECT to exit Mixer",
+                        "Current Mix:",
+                        colorRegister.GetMix(colorRegister.cursorPosition));
+      break;
+    case S_CONFIRM:      // Machine tries to confirm the mix
+      logToSerial("S_CONFIRM");
+      // ----------------********************
+      lcdLines.SetLines("Press SELECT to test",
+                        "your mixing skills",
+                        "",
+                        "");
+      break;
+    case S_DISPLAY:      // Machine asks for confirmation    
+      logToSerial("S_DISPLAY");
+      // ----------------********************
+      lcdLines.SetLines("Did your mix fix",
+                        "the rainbow?",
+                        "SELECT - Yes",
+                        "UP/DOWN - No");
+      break;
+    case S_UNKNOWN:     // Machine is in an unknown state
+      logToSerial("S_UNKNOWN");
+      // ----------------********************
+      lcdLines.SetLines("Unknown State",
+                        "",
+                        "",
+                        "");
+      break;
+  }
+  printToLcd(lcdLines.lines,4);
+}
+
+StateMachine machine;
+
+/* ------------------------------------------------------------------------------- */
 /// void setup
 ///   
 /* ------------------------------------------------------------------------------- */
@@ -256,15 +325,14 @@ void setup()
   // Initialize Serial
   Serial.begin(SERIAL_BAUD_RATE);
   
-  // Initialize Controls 
-  for (ControlType i=B_SELECT;i<=B_DOWN;i=ControlType(int(i)+1))
-  {
-    pinMode(BUTTON_PIN[i], INPUT);
-    debouncer[i] = Bounce();
-    debouncer[i].attach(BUTTON_PIN[i]);
-    debouncer[i].interval(5);
-  }
-  
+  // Initialize Button Reading
+  analogButtons.add(b1);
+  analogButtons.add(b2);
+  analogButtons.add(b3);
+  analogButtons.add(b4);
+  analogButtons.add(b5);  
+  analogButtons.add(b6);  
+
   // Initialize LCD
   pinMode(LCD_PIN_BACKLIGHT, OUTPUT);      // Initialize LCD Backlight Pin
   digitalWrite(LCD_PIN_BACKLIGHT, HIGH);   // Turn LCD Backlight on.
@@ -275,7 +343,7 @@ void setup()
   ledStrip.write(colorRegister.colors, LED_COUNT);
   
   // Initialize State Machine
-  machine.SetState(S_START);
+  machine.SetState(S_START,colorRegister);
 }
 /* ------------------------------------------------------------------------------- */
 /// void loop
@@ -285,28 +353,20 @@ void setup()
 /// - State machine that transitions between states by reacting to button clicks
 /// RangerDan-07242014
 /// - Reduced number of states
+/// - Moved LCD messages to State Machine object
+/// RangerDan-08192014
+/// - Completed move of LCD Messages to State Machine object
+/// - Changed buttons to use one pin instead of six using resistors
+/// - Fixed state machine so it rotates through Navigation and Confirmation states
 /* ------------------------------------------------------------------------------- */
 void loop()
 {  
-  ControlType buttonPress = INVALID;
+  // Check for button clicks
+  analogButtons.check();
   
-  int reading = LOW;
-  boolean stateChanged = false;
-  // Read button states on this pass
-  for(ControlType i=B_SELECT;i<=B_DOWN;i=ControlType(int(i)+1))
-  {
-    stateChanged = debouncer[i].update();
-    reading = debouncer[i].read();
-    if (stateChanged && reading == HIGH)
-    {
-      logToSerial("Btn: " + String(int(i)));
-      buttonPress = i;
-    }
+  // Uncomment to output analog reads to serial, used to configure button values
+  // configure();
     
-    reading = LOW;
-    stateChanged = false;
-  }
-  
   // Begin State Machine
   switch (buttonPress)
   {
@@ -314,33 +374,18 @@ void loop()
       switch (machine.state)
       {
         case S_START:
-          
-        case S_MIXER:
-          machine.SetState(S_NAVIGATION);
+          machine.SetState(S_NAVIGATION, colorRegister);
           colorRegister.SetCursor(0);
           ledStrip.write(colorRegister.colors, LED_COUNT);
           break;
+        case S_MIXER:
+          machine.SetState(S_NAVIGATION, colorRegister);
+          break;
         case S_NAVIGATION:
-          machine.SetState(S_MIXER);
-          logToSerial("S:Mixer");
-          // LCD Message
-          // ----------------********************
-          lcdLines.SetLines("Choose 2 from A/B/C",
-                            "SELECT to exit Mixer",
-                            "Current Mix:",
-                            colorRegister.GetMix(colorRegister.cursorPosition));
-          printToLcd(lcdLines.lines,4);
+          machine.SetState(S_MIXER, colorRegister);
           break;
         case S_CONFIRM:
-          machine.SetState(S_DISPLAY);
-          logToSerial("S:Confirm");
-          // LCD Message
-          // ----------------********************
-          lcdLines.SetLines("Press SELECT to test",
-                            "your mixing skills",
-                            "",
-                            "");
-          printToLcd(lcdLines.lines,4);
+          machine.SetState(S_DISPLAY, colorRegister);
           break;
         case S_DISPLAY:
           logToSerial("S:Display");
@@ -353,6 +398,7 @@ void loop()
                               "SELECT - Yes",
                               "UP/DOWN - No");
             printToLcd(lcdLines.lines,4);
+
           break;
         default:
           break; 
@@ -364,15 +410,8 @@ void loop()
       switch (machine.state)
       {
         case S_MIXER:
-          logToSerial("Btn: " + buttonPress);
-          // LCD Message
-          // ----------------********************
           colorRegister.SetMix(buttonPress);
-          lcdLines.SetLines("Choose 2 from A/B/C",
-                            "SELECT to exit Mixer",
-                            "Current Mix:",
-                            colorRegister.GetMix(colorRegister.cursorPosition));
-          printToLcd(lcdLines.lines,4);
+          machine.SetState(S_MIXER, colorRegister);
           break;
         default:
           break; 
@@ -380,66 +419,20 @@ void loop()
       break;
     case B_UP:
     case B_DOWN:
-      logToSerial("Btn: " + buttonPress);
-      switch (machine.state)
-      {
-        case S_NAVIGATION:
           if (buttonPress == B_UP)
           {
-            machine.SetState(colorRegister.MoveCursor(-1));
+            machine.SetState(colorRegister.MoveCursor(-1), colorRegister);
           }
           else if (buttonPress == B_DOWN)
           {
-            machine.SetState(colorRegister.MoveCursor(1));
-          }
-          
-          if (machine.state == S_NAVIGATION)
-          {
-            // LCD Message
-            // ----------------********************
-            lcdLines.SetLines("Choose 2 from A/B/C",
-                              "SELECT to exit Mixer",
-                              "Current Mix:",
-                              colorRegister.GetMix(colorRegister.cursorPosition));
-            printToLcd(lcdLines.lines,4);
-            ledStrip.write(colorRegister.colors, LED_COUNT);
-          }
-          else if (machine.state == S_CONFIRM)
-          {
-            lcdLines.SetLines("Press SELECT to test",
-                              "your mixing skills",
-                              "",
-                              "");
-            printToLcd(lcdLines.lines,4);
+            machine.SetState(colorRegister.MoveCursor(1), colorRegister);
           }
           break;
-        case S_CONFIRM:
-          // LCD Message
-          // ----------------********************
-          if (buttonPress == B_UP)
-          {
-            colorRegister.MoveCursor(-1);
-          }
-          else if (buttonPress == B_DOWN)
-          {
-            colorRegister.MoveCursor(1);
-          }
-          
-          machine.SetState(S_NAVIGATION);
-          lcdLines.SetLines("Choose 2 from A/B/C",
-                            "SELECT to exit Mixer",
-                            "Current Mix:",
-                            colorRegister.GetMix(colorRegister.cursorPosition));
-          printToLcd(lcdLines.lines,4);
-          break;
-        default:
-          break; 
-      };
       break;
     case INVALID:
       break;
     default:
-      machine.SetState(S_UNKNOWN); 
+      machine.SetState(S_UNKNOWN, colorRegister); 
       break;
   }
   // Reset Button press
