@@ -162,12 +162,14 @@ void Register::SetRows(rgb_color r0, rgb_color r1, rgb_color r2, rgb_color r3, r
 }
 void Register::SetCursor(int cursorPos)
 {
-   SetRows(C_OFF, C_OFF, C_OFF, C_OFF, C_OFF, C_OFF);
-   if (cursorPos >=0 && cursorPos < LED_COUNT)
+  cursorPosition = cursorPos; 
+  SetRows(C_OFF, C_OFF, C_OFF, C_OFF, C_OFF, C_OFF);
+   if (cursorPosition >=0 && cursorPosition < LED_COUNT)
    {
-     colors[cursorPos] = C_WHITE;
+     colors[cursorPosition] = C_WHITE;
    }
-   logToSerial("Cursor Position: " + cursorPos);
+   String Note = "Cursor Position: ";
+   logToSerial(Note + cursorPosition);
 }
 StateType Register::MoveCursor(int cursorDirection)
 {
@@ -419,15 +421,14 @@ void loop()
       break;
     case B_UP:
     case B_DOWN:
-          if (buttonPress == B_UP)
-          {
-            machine.SetState(colorRegister.MoveCursor(-1), colorRegister);
-          }
-          else if (buttonPress == B_DOWN)
-          {
-            machine.SetState(colorRegister.MoveCursor(1), colorRegister);
-          }
-          break;
+      if (buttonPress == B_UP)
+      {    
+        machine.SetState(colorRegister.MoveCursor(-1), colorRegister);
+      }
+      else if (buttonPress == B_DOWN)
+      {
+        machine.SetState(colorRegister.MoveCursor(1), colorRegister);
+      }
       break;
     case INVALID:
       break;
